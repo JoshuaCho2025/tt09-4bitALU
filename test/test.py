@@ -8,9 +8,8 @@ async def test_tt_um_Richard28277(dut):
     cocotb.start_soon(Clock(dut.clk, 10, units='ns').start())
 
     # Initialize Inputs
-    dut.a.value = 0
-    dut.b.value = 0
-    dut.uio_in.value = 0
+    dut.ui_in.value = 0
+   dut.uio_in.value = 0
     dut.ena.value = 1
     dut.rst_n.value = 0
 
