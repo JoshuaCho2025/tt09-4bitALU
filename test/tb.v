@@ -18,7 +18,7 @@ module tb ();
   reg rst_n;
   reg ena;
    reg [7:0] ui_in;
-   reg [3:0] opcode;
+   reg [7:0] uio_in;
   wire [7:0] uo_out;
   wire [7:0] uio_out;
   wire [7:0] uio_oe;
@@ -38,7 +38,7 @@ module tb ();
 
      .ui_in  (ui_in),    // Dedicated inputs
      .uo_out (uo_out),   // Dedicated outputs
-      .uio_in ({4'b0000,opcode}),   // IOs: Input path
+     .uio_in (uio_in),   // IOs: Input path
       .uio_out(uio_out),  // IOs: Output path
       .uio_oe (uio_oe),   // IOs: Enable path (active high: 0=input, 1=output)
       .ena    (ena),      // enable - goes high when design is selected
