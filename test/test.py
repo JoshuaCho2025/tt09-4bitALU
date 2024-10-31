@@ -4,7 +4,7 @@ from cocotb.triggers import ClockCycles
 
 
 @cocotb.test()
-async def test_alu_operations(dut):
+async def test_tt_um_Richard28277(dut):
     dut._log.info("Starting ALU test for all operations and corner cases.")
 
     # Set up a 10us (100 KHz) clock
