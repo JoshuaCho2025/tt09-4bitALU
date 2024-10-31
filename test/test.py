@@ -1,86 +1,83 @@
 import cocotb
-from cocotb.triggers import RisingEdge, Timer
 from cocotb.clock import Clock
+from cocotb.triggers import ClockCycles
+
 
 @cocotb.test()
-async def test_tt_um_Richard28277(dut):
-    # Clock generation
-    cocotb.start_soon(Clock(dut.clk, 10, units='ns').start())
+async def test_alu_operations(dut):
+    dut._log.info("Starting ALU test for all operations and corner cases.")
 
-    # Initialize Inputs
-    dut.ui_in.value = 0
-    dut.uio_in.value = 0
-    dut.ena.value = 1
-    dut.rst_n.value = 0
+    # Set up a 10us (100 KHz) clock
+    clock = Clock(dut.clk, 10, units="us")
+    cocotb.start_soon(clock.start())
 
-    # Wait for global reset
-    await Timer(50, units='ns')
-    dut.rst_n.value = 1
+    # Define opcode values corresponding to ALU operations
+    opcodes = {
+        "ADD": 0b0000,
+        "SUB": 0b0001,
+        "MUL": 0b0010,
+        "DIV": 0b0011,
+        "AND": 0b0100,
+        "OR": 0b0101,
+        "XOR": 0b0110,
+        "NOT": 0b0111,
+        "ENC": 0b1000
+    }
 
-    # Helper function to display results
-    def display_result(op_name):
-        print(f"{op_name}: result = {dut.uo_out.value}, uio_out = {dut.uio_out.value}")
+    # Test values for `a` and `b`
+    a_vals = [0, 1, 7, 8, 15]  # Testing edge cases and mid-values
+    b_vals = [0, 1, 7, 8, 15]
 
-    # Test ADD operation
-    dut.ui_in.value = 0b0011_0101  # a = 3, b = 5
-    dut.uio_in.value = 0b0000      # opcode = ADD
-    await Timer(50, units='ns')
-    display_result("ADD")
-    assert dut.uo_out.value == 0b0000_1000  # Expect 8 (0b00001000)
+    for op_name, opcode in opcodes.items():
+        for a in a_vals:
+            for b in b_vals:
+                dut.ui_in.value = (a << 4) | b
+                dut.uio_in.value = opcode
+                await ClockCycles(dut.clk, 1)
 
-    # Test SUB operation
-    dut.ui_in.value = 0b0010_0001  # a = 2, b = 1
-    dut.uio_in.value = 0b0001      # opcode = SUB
-    await Timer(50, units='ns')
-    display_result("SUB")
-    assert dut.uo_out.value == 0b0000_0001  # Expect 1 (0b00000001)
+                # Expected results based on opcode
+                if op_name == "ADD":
+                    expected_sum = (a + b) % 16
+                    expected_carry = int(a + b >= 16)
+                    assert dut.uo_out.value == expected_sum, f"{op_name} failed for a={a}, b={b}"
+                    assert dut.uio_out[6].value == expected_carry, f"{op_name} carry failed for a={a}, b={b}"
 
-    # Test MUL operation
-    dut.ui_in.value = 0b0010_0011  # a = 2, b = 3
-    dut.uio_in.value = 0b0010      # opcode = MUL
-    await Timer(50, units='ns')
-    display_result("MUL")
-    assert dut.uo_out.value == 0b0000_0110  # Expect 6 (0b00000110)
+                elif op_name == "SUB":
+                    expected_sub = (a - b) % 16
+                    expected_borrow = int(a < b)
+                    assert dut.uo_out.value == expected_sub, f"{op_name} failed for a={a}, b={b}"
+                    assert dut.uio_out[6].value == expected_borrow, f"{op_name} borrow failed for a={a}, b={b}"
 
-    # Test DIV operation
-    dut.ui_in.value = 0b0100_0010  # a = 4, b = 2
-    dut.uio_in.value = 0b0011      # opcode = DIV
-    await Timer(50, units='ns')
-    display_result("DIV")
-    # Expect 4 and 2 (0b0000_0010 0b0000_0100)
-    assert dut.uo_out.value == 0b00000010
+                elif op_name == "MUL":
+                    expected_mul = (a * b) % 256
+                    assert dut.uo_out.value == expected_mul, f"{op_name} failed for a={a}, b={b}"
 
-    # Test AND operation
-    dut.ui_in.value = 0b0010_0010  # a = 2, b = 2
-    dut.uio_in.value = 0b0100      # opcode = AND
-    await Timer(50, units='ns')
-    display_result("AND")
-    assert dut.uo_out.value == 0b0000_0010  # Expect 2 (0b00000010)
+                elif op_name == "DIV":
+                    expected_quotient = a // b if b != 0 else 0
+                    expected_remainder = a % b if b != 0 else 0
+                    assert dut.uo_out.value == (expected_remainder << 4) | expected_quotient, f"{op_name} failed for a={a}, b={b}"
 
-    # Test OR operation
-    dut.ui_in.value = 0b1100_1010  # a = 12, b = 10
-    dut.uio_in.value = 0b0101      # opcode = OR
-    await Timer(50, units='ns')
-    display_result("OR")
-    assert dut.uo_out.value == 0b00001110  # Expect 14 (0b00001110)
+                elif op_name == "AND":
+                    expected_and = a & b
+                    assert dut.uo_out.value == expected_and, f"{op_name} failed for a={a}, b={b}"
 
-    # Test XOR operation
-    dut.ui_in.value = 0b1100_1010  # a = 12, b = 10
-    dut.uio_in.value = 0b0110      # opcode = XOR
-    await Timer(50, units='ns')
-    display_result("XOR")
-    assert dut.uo_out.value == 0b0000_0110  # Expect 6 (0b00000110)
+                elif op_name == "OR":
+                    expected_or = a | b
+                    assert dut.uo_out.value == expected_or, f"{op_name} failed for a={a}, b={b}"
 
-    # Test NOT operation
-    dut.ui_in.value = 0b1100_1010  # a = 12, b = ignored
-    dut.uio_in.value = 0b0111      # opcode = NOT
-    await Timer(50, units='ns')
-    display_result("NOT")
-    assert dut.uo_out.value == 0b00000011  # Expect 101 (0b00100101)
+                elif op_name == "XOR":
+                    expected_xor = a ^ b
+                    assert dut.uo_out.value == expected_xor, f"{op_name} failed for a={a}, b={b}"
 
-    # Test ENC operation
-    dut.ui_in.value = 0b0010_1100  # a = 2, b = 12
-    dut.uio_in.value = 0b1000      # opcode = ENC
-    await Timer(50, units='ns')
-    display_result("ENC")
-    assert dut.uo_out.value == (0b0010_1100 ^ 0xAB)  # Expect encryption result with key 0xAB
+                elif op_name == "NOT":
+                    expected_not = ~a & 0xF  # 4-bit NOT
+                    assert dut.uo_out.value == expected_not, f"{op_name} failed for a={a}"
+
+                elif op_name == "ENC":
+                    encryption_key = 0xAB
+                    expected_enc = ((a << 4) | b) ^ encryption_key
+                    assert dut.uo_out.value == expected_enc, f"{op_name} failed for a={a}, b={b}"
+
+                dut._log.info(f"Operation {op_name} with a={a}, b={b}: Passed")
+
+    dut._log.info("All ALU operation tests completed successfully.")
